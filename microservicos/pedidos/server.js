@@ -7,6 +7,9 @@ const app = express();
 const PRODUTOS_URL =
     process.env.PRODUTOS_URL || "http://localhost:3001";
 
+const CLIENTES_URL =
+    process.env.CLIENTES_URL || "http://localhost:3003";
+
 app.use(express.json());
 
 const pedidos = [];
@@ -77,6 +80,34 @@ app.post("/pedidos", async (req, res) => {
     if (!cliente_id || !produtoId || !quantidade || quantidade <= 0) {
         return res.status(400).json({
             erro: "cliente_id, produtoId e quantidade válida são obrigatórios"
+        });
+    }
+
+    try {
+        await axios.get(
+            `${CLIENTES_URL}/clientes/${cliente_id}`,
+            {
+                timeout: 3000
+            }
+        );
+    } catch (erro) {
+        if (erro.response?.status === 404) {
+            return res.status(400).json({
+                erro: "Cliente não encontrado"
+            });
+        }
+
+        if (
+            erro.code === "ECONNREFUSED" ||
+            erro.code === "ECONNABORTED"
+        ) {
+            return res.status(503).json({
+                erro: "Serviço de Clientes indisponível"
+            });
+        }
+
+        return res.status(500).json({
+            erro: "Erro ao validar cliente"
         });
     }
 
