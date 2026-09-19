@@ -1,6 +1,6 @@
 services:
-  produto:
-    build: ./produto
+  produtos:
+    build: ./produtos
     ports:
       - "3001:3001"
     environment:
@@ -9,14 +9,29 @@ services:
       postgres:
         condition: service_healthy
 
-  pedido:
-    build: ./pedido
+  pedidos:
+    build: ./pedidos
     ports:
       - "3002:3002"
     environment:
-      PRODUTOS_URL: http://produto:3001
+      PRODUTOS_URL: http://produtos:3001
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/pedidos_db
     depends_on:
-      - produto
+      postgres:
+        condition: service_healthy
+      produtos:
+        condition: service_started
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PRODUTOS_URL: http://produtos:3001
+      PEDIDOS_URL: http://pedidos:3002
+    depends_on:
+      - produtos
+      - pedidos
 
   postgres:
     image: postgres:16-alpine
@@ -25,9 +40,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: produtos_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./banco/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d produtos_db"]
       interval: 5s
