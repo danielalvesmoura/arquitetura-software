@@ -72,11 +72,11 @@ app.get("/pedidos", async (req, res) => {
 });*/
 
 app.post("/pedidos", async (req, res) => {
-    const { produtoId, quantidade } = req.body;
+    const { cliente_id, produtoId, quantidade } = req.body;
 
-    if (!produtoId || !quantidade || quantidade <= 0) {
+    if (!cliente_id || !produtoId || !quantidade || quantidade <= 0) {
         return res.status(400).json({
-            erro: "produtoId e quantidade válida são obrigatórios"
+            erro: "cliente_id, produtoId e quantidade válida são obrigatórios"
         });
     }
 
@@ -93,15 +93,17 @@ app.post("/pedidos", async (req, res) => {
 
         const resultado = await db.query(
             `INSERT INTO pedidos (
-        produto_id,
-        nome_produto,
-        preco_unitario,
-        quantidade,
-        total
-      )
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *`,
+                cliente_id,
+                produto_id,
+                nome_produto,
+                preco_unitario,
+                quantidade,
+                total
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *`,
             [
+                cliente_id,
                 produto.id,
                 produto.nome,
                 produto.preco,
@@ -172,13 +174,19 @@ app.use(express.json());
 async function criarTabela() {
     await db.query(`
         CREATE TABLE IF NOT EXISTS pedidos (
-        id SERIAL PRIMARY KEY,
-        produto_id INTEGER NOT NULL,
-        nome_produto VARCHAR(100) NOT NULL,
-        preco_unitario NUMERIC(10, 2) NOT NULL,
-        quantidade INTEGER NOT NULL,
-        total NUMERIC(10, 2) NOT NULL
+            id SERIAL PRIMARY KEY,
+            cliente_id INTEGER,
+            produto_id INTEGER NOT NULL,
+            nome_produto VARCHAR(100) NOT NULL,
+            preco_unitario NUMERIC(10, 2) NOT NULL,
+            quantidade INTEGER NOT NULL,
+            total NUMERIC(10, 2) NOT NULL
         )
+    `);
+
+    await db.query(`
+        ALTER TABLE pedidos
+        ADD COLUMN IF NOT EXISTS cliente_id INTEGER
     `);
 
     console.log("Tabela de pedidos pronta");
