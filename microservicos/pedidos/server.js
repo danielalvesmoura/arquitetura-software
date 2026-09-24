@@ -84,16 +84,49 @@ app.post("/pedidos", async (req, res) => {
     }
 
     try {
-        await axios.get(
+        const respostaCliente = await axios.get(
             `${CLIENTES_URL}/clientes/${cliente_id}`,
             {
                 timeout: 3000
             }
         );
+
+        const cliente = respostaCliente.data;
+
+        const respostaProduto = await axios.get(
+            `${PRODUTOS_URL}/produtos/${produtoId}`,
+            {
+                timeout: 3000
+            }
+        );
+
+        const produto = respostaProduto.data;
+
+        const total = produto.preco * quantidade;
+
+        const resultado = await db.query(
+            `INSERT INTO pedidos (
+                cliente,
+                produto,
+                quantidade,
+                total
+            )
+            VALUES ($1, $2, $3, $4)
+            RETURNING *`,
+            [
+                JSON.stringify(cliente),
+                JSON.stringify(produto),
+                quantidade,
+                total
+            ]
+        );
+
+        res.status(201).json(resultado.rows[0]);
+
     } catch (erro) {
         if (erro.response?.status === 404) {
             return res.status(400).json({
-                erro: "Cliente não encontrado"
+                erro: "Cliente ou produto não encontrado"
             });
         }
 
@@ -102,66 +135,18 @@ app.post("/pedidos", async (req, res) => {
             erro.code === "ECONNABORTED"
         ) {
             return res.status(503).json({
-                erro: "Serviço de Clientes indisponível"
+                erro: "Serviço indisponível"
             });
         }
 
-        return res.status(500).json({
-            erro: "Erro ao validar cliente"
-        });
-    }
-
-    try {
-        const resposta = await axios.get(
-            `${PRODUTOS_URL}/produtos/${produtoId}`,
-            {
-                timeout: 3000
-            }
-        );
-
-        const produto = resposta.data;
-        const total = produto.preco * quantidade;
-
-        const resultado = await db.query(
-            `INSERT INTO pedidos (
-                cliente_id,
-                produto_id,
-                nome_produto,
-                preco_unitario,
-                quantidade,
-                total
-            )
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING *`,
-            [
-                cliente_id,
-                produto.id,
-                produto.nome,
-                produto.preco,
-                quantidade,
-                total
-            ]
-        );
-
-        res.status(201).json(resultado.rows[0]);
-    } catch (erro) {
-        if (erro.response?.status === 404) {
-            return res.status(400).json({
-                erro: "Produto não encontrado"
-            });
-        }
-
-        if (erro.code === "ECONNREFUSED" || erro.code === "ECONNABORTED") {
-            return res.status(503).json({
-                erro: "Serviço de Produtos indisponível"
-            });
-        }
+        console.error(erro);
 
         return res.status(500).json({
             erro: "Erro ao criar pedido"
         });
     }
 });
+
 
 /*app.get("/pedidos/:id", (req, res) => {
     const pedido = pedidos.find(
@@ -206,22 +191,16 @@ async function criarTabela() {
     await db.query(`
         CREATE TABLE IF NOT EXISTS pedidos (
             id SERIAL PRIMARY KEY,
-            cliente_id INTEGER,
-            produto_id INTEGER NOT NULL,
-            nome_produto VARCHAR(100) NOT NULL,
-            preco_unitario NUMERIC(10, 2) NOT NULL,
+            cliente JSONB NOT NULL,
+            produto JSONB NOT NULL,
             quantidade INTEGER NOT NULL,
             total NUMERIC(10, 2) NOT NULL
         )
     `);
 
-    await db.query(`
-        ALTER TABLE pedidos
-        ADD COLUMN IF NOT EXISTS cliente_id INTEGER
-    `);
-
     console.log("Tabela de pedidos pronta");
 }
+
 
 criarTabela();
 
